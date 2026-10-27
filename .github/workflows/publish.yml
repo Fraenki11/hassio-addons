@@ -8,6 +8,7 @@ on:
 env:
   ARCHITECTURES: '["amd64", "aarch64"]'
   IMAGE_NAME: lg-ess
+  IMAGE_NAMESPACE: ghcr.io/fraenki11
 
 permissions:
   contents: read
