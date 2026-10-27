@@ -85,5 +85,3 @@ jobs:
           image-tags: |
             ${{ needs.init.outputs.version }}
             latest
-```
-```
