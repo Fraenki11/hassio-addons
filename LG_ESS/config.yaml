@@ -2,7 +2,7 @@
 version: "1.0.2"
 slug: lg_ess
 name: "LG ESS"
-
+image: "ghcr.io/fraenki11/{arch}-lg-ess"
 description: "für Jens ❤️"
 url: "https://github.com/Buktahula/hassio-addons/tree/main/LG_ESS"
 arch:
