@@ -1621,6 +1621,11 @@ async def handle_control(client, ess, lang="de", installer_password=None):
 async def poll_loop(ess, client, interval_seconds=5, auto_create=True, lang="de", power_unit="kW"):
     """Main polling loop: queries LG ESS, calculates metrics, and publishes to MQTT."""
     logger.info("Starting LG ESS polling loop...")
+    try:
+        graph = await ess.get_graph("pv", "month", datetime.datetime.now())
+        logger.info("PV HISTORICAL TEST: %s", json.dumps(graph, ensure_ascii=False)[:3000])
+    except Exception as err:
+        logger.warning("PV HISTORICAL TEST FAILED: %s", err)
     loop_count = 0
 
     while True:
