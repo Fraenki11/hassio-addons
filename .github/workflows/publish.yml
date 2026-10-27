@@ -41,6 +41,7 @@ jobs:
         with:
           architectures: ${{ env.ARCHITECTURES }}
           image-name: ${{ env.IMAGE_NAME }}
+          registry-prefix: ghcr.io/fraenki11
 
   build:
     name: Build ${{ matrix.arch }}
