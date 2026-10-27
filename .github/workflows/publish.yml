@@ -63,6 +63,8 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
           context: LG_ESS
+          build-args: |
+            BUILD_FROM=ghcr.io/home-assistant/${{ matrix.arch }}-base-python:3.12-alpine3.20
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           image: ${{ matrix.image }}
           image-tags: |
