@@ -1618,14 +1618,86 @@ async def handle_control(client, ess, lang="de", installer_password=None):
         logger.warning(f"Control handler exited unexpectedly: {ex}")
 
 
+async def publish_historical_pv(ess, client, months_back=12):
+    """Publish LG ESS daily PV generation history as retained kWh sensors."""
+    now = datetime.datetime.now()
+    month_date = datetime.datetime(now.year, now.month, 1)
+    published = 0
+
+    for _ in range(max(1, months_back)):
+        month = month_date
+        try:
+            graph = await ess.get_graph("pv", "month", month)
+            for entry in graph.get("loginfo", []):
+                date_raw = str(entry.get("time", ""))
+                generation_raw = entry.get("generation")
+                if len(date_raw) < 8 or generation_raw is None:
+                    continue
+
+                try:
+                    day = datetime.datetime.strptime(date_raw[:8], "%Y%m%d").date()
+                    generation_kwh = float(generation_raw) / 1000.0
+                except (TypeError, ValueError):
+                    logger.debug("Skipping invalid historical PV row: %s", entry)
+                    continue
+
+                if generation_kwh < 0:
+                    logger.debug("Skipping negative historical PV generation for %s", day)
+                    continue
+
+                date_text = day.strftime("%Y-%m-%d")
+                date_id = day.strftime("%Y%m%d")
+                sensor_id = f"pv_generation_{date_id}"
+                state_topic = f"ess/historical/pv/{date_text}"
+
+                config = {
+                    "name": f"PV-Ertrag {day.strftime('%d.%m.%Y')}",
+                    "unique_id": f"lgess_mqtt_{sensor_id}",
+                    "default_entity_id": f"sensor.{sensor_id}",
+                    "object_id": sensor_id,
+                    "state_topic": state_topic,
+                    "device_class": "energy",
+                    "state_class": "total",
+                    "unit_of_measurement": "kWh",
+                    "icon": "mdi:solar-power",
+                    "device": DEVICE_INFO,
+                }
+
+                await client.publish(
+                    f"homeassistant/sensor/lg_ess/{sensor_id}/config",
+                    json.dumps(config, ensure_ascii=False),
+                    retain=True,
+                    qos=1,
+                )
+                await client.publish(
+                    state_topic,
+                    f"{generation_kwh:.3f}",
+                    retain=True,
+                    qos=1,
+                )
+                published += 1
+
+        except Exception as err:
+            logger.warning(
+                "Could not publish historical PV data for %s: %s",
+                month.strftime("%Y-%m"),
+                err,
+            )
+
+        # Move to the first day of the previous month.
+        month_date = (month_date - datetime.timedelta(days=1)).replace(day=1)
+
+    logger.info("Published/updated %s historical PV daily sensors.", published)
+
+
 async def poll_loop(ess, client, interval_seconds=5, auto_create=True, lang="de", power_unit="kW"):
     """Main polling loop: queries LG ESS, calculates metrics, and publishes to MQTT."""
     logger.info("Starting LG ESS polling loop...")
     try:
-        graph = await ess.get_graph("pv", "month", datetime.datetime.now())
-        logger.info("PV HISTORICAL TEST: %s", json.dumps(graph, ensure_ascii=False)[:3000])
+        await publish_historical_pv(ess, client, months_back=12)
     except Exception as err:
-        logger.warning("PV HISTORICAL TEST FAILED: %s", err)
+        logger.warning("Historical PV publishing failed: %s", err)
+    last_history_refresh = time.monotonic()
     loop_count = 0
 
     while True:
@@ -1639,6 +1711,14 @@ async def poll_loop(ess, client, interval_seconds=5, auto_create=True, lang="de"
             await recursive_publish_dict(client, "ess/common", common)
 
             loop_count += 1
+
+            # Refresh the current month's historical values every 30 minutes.
+            if time.monotonic() - last_history_refresh >= 1800:
+                try:
+                    await publish_historical_pv(ess, client, months_back=1)
+                except Exception as history_err:
+                    logger.warning("Historical PV refresh failed: %s", history_err)
+                last_history_refresh = time.monotonic()
 
             # 3. Publish computed sensors
             if auto_create:
