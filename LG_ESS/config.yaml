@@ -2,7 +2,7 @@
 version: "1.0.0"
 slug: lg_ess
 name: "LG ESS"
-image: "buktahula/lgess-{arch}"
+
 description: "für Jens ❤️"
 url: "https://github.com/Buktahula/hassio-addons/tree/main/LG_ESS"
 arch:
